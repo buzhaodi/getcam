@@ -1,6 +1,6 @@
 ﻿  getcam.cpp
-e:\getcam\getcam\include\libavutil\rational.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
-E:\getcam\getcam\getcam\getcam.cpp(190,11): warning C4129: “,”: 不可识别的字符转义序列
-E:\getcam\getcam\getcam\getcam.cpp(155,6): warning C4101: “rets”: 未引用的局部变量
-E:\getcam\getcam\getcam\getcam.cpp(294,18): warning C4101: “frameFinished”: 未引用的局部变量
-  getcam.vcxproj -> E:\getcam\getcam\x64\Debug\getcam.exe
+f:\getcam\include\libavutil\rational.h : warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+f:\getcam\getcam\getcam.cpp(190): warning C4129: “,”: 不可识别的字符转义序列
+f:\getcam\getcam\getcam.cpp(155): warning C4101: “rets”: 未引用的局部变量
+f:\getcam\getcam\getcam.cpp(294): warning C4101: “frameFinished”: 未引用的局部变量
+  getcam.vcxproj -> F:\getcam\x64\Debug\getcam.exe

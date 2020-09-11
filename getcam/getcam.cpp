@@ -467,7 +467,7 @@ int opencam()
 
 
 
-						ret = avcodec_send_frame(en_ctx, frame);
+	/*					ret = avcodec_send_frame(en_ctx, frame);
 						if (ret < 0) {
 							
 							SDL_Log("Error sending a frame for encoding ret is %d\n",ret);
@@ -488,7 +488,7 @@ int opencam()
 							fwrite(pkt->data, 1, pkt->size, f);
 							av_packet_unref(pkt);
 						}
-
+*/
 
 
 
