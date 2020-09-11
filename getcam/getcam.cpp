@@ -358,16 +358,36 @@ int opencam()
 
 	 AVCodecContext* en_ctx = avcodec_alloc_context3(en_codec);
 	 AVPacket*  pkt = av_packet_alloc();
+
+	 AVRational frame_rate = {25,1};
+	 AVRational frame_base = {1,25 };
+
+
+
 	 if (!pkt)
 		 exit(1);
-	 en_ctx->bit_rate = 400000;
+	 en_ctx->profile = FF_PROFILE_H264_HIGH_444;
+	 en_ctx->level = 50;
+	 en_ctx->gop_size = 25;
+	 en_ctx->keyint_min = 25;
+	 en_ctx->max_b_frames = 0;
+	 en_ctx->has_b_frames = 0;
+	 en_ctx->refs = 3;
+	 en_ctx->bit_rate = 600000;
 	 en_ctx->width = true_width;
 	 en_ctx->height = true_height;
-	 en_ctx->time_base ={ 1, 25 };
-	 en_ctx->framerate = { 25, 1 };
+	 en_ctx->time_base = frame_base;
+	 en_ctx->framerate = frame_rate;
 	 en_ctx->gop_size = 10;
 	 en_ctx->max_b_frames = 1;
 	 en_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+
+
+	 ret = avcodec_open2(en_ctx,en_codec,NULL);
+	 if (ret < 0) {
+		 SDL_Log("open avcodec_open2 fail \n");
+		 exit(1);
+	 }
 
 
 	 if (en_codec->id == AV_CODEC_ID_H264) {
