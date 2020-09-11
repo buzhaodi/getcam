@@ -358,6 +358,11 @@ int opencam()
 	
 
 					if (avcodec_receive_frame(pCodecCtx, frame) >= 0) {
+
+
+
+
+
 				
 						sws_scale(sws_ctx, (uint8_t const * const *)frame->data,
 							frame->linesize, 0, pCodecCtx->height,
