@@ -51,3 +51,5 @@ Mkfile.old
 dkms.conf
 .vs
 *.tlog
+*.log
+getcam\x64\Debug
