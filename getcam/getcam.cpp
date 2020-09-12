@@ -186,8 +186,6 @@ int record_thread(void* data) {
 
 
 
-
-
 	if ((ret = avio_open(&ofmt_ctx->pb, filename, AVIO_FLAG_READ_WRITE)) < 0) {
 			SDL_Log("Failed to open output file %d\n", ret);
 			exit(1);
@@ -203,9 +201,11 @@ int record_thread(void* data) {
 	av_dump_format(ofmt_ctx, 0, filename, 1);
 
 
+	AVDictionary* opt = NULL;
+	av_dict_set_int(&opt, "video_track_timescale", 25, 0);
 
 
-	if ((ret = avformat_write_header(ofmt_ctx, 0)) < 0) {
+	if ((ret = avformat_write_header(ofmt_ctx, &opt)) < 0) {
 		SDL_Log("Failed to write header to output file %d\n", ret);
 		exit(1);
 	}
@@ -305,17 +305,55 @@ int record_thread(void* data) {
 
 
 
-			av_packet_unref(pkt);
+			
 
 			time_t now = time(NULL);
 			
-			if (now - myt > 10) {
+			if (now - myt > 5) {
 				SDL_Log("record end!\n");
-				av_write_trailer(ofmt_ctx);
+
+				ret = avcodec_send_frame(en_ctx, NULL);
+				if (ret < 0) {
+					SDL_Log("error ,failed to send a freame for enconding!\n");
+					exit(1);
+				}
+
+				while (ret >= 0) {
+					ret = avcodec_receive_packet(en_ctx, pkt);
+					if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+						//SDL_Log("666 ret is %d\n", ret);
+						break;
+
+						return -1;
+					}
+					else if (ret < 0) {
+						fprintf(stderr, "Error during encoding\n");
+						exit(1);
+					}
+					//SDL_Log("Write packet %3PRId64 (size=%d)\n", pkt->pts, pkt->size);
+
+
+					//fwrite(pkt->data, 1, pkt->size, f);
+
+					pkt->pts = base++;
+
+					if ((ret = av_interleaved_write_frame(ofmt_ctx, pkt)) < 0) {
+						SDL_Log("Failed to mux packet  %d\n", ret);
+						av_packet_unref(pkt);
+						break;
+					}
+				
+				
+				
+				}
+	
+
+				av_write_trailer(ofmt_ctx);				
+				av_packet_unref(pkt);
 				exit(1);
-			
 			}
 
+			av_packet_unref(pkt);
 
 		}
 
