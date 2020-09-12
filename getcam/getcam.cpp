@@ -38,6 +38,8 @@ DEFINE_GUID(IID_ICreateDevEnum, 0x29840822, 0x5b84, 0x11d0, 0xbd, 0x3b, 0x00, 0x
 #define SDL_EVENT_INTERFACE_FRESH (SDL_USEREVENT+1)
 
 int thread_exit = 0;
+int true_width, true_height;
+int video_index = 0;
 
 int event_handler(void * data) {
 	while (!thread_exit) {
@@ -52,6 +54,197 @@ int event_handler(void * data) {
 
 	return 0;
 
+}
+
+int record_thread(void* data) {
+	Pam* pam = (Pam*)data;
+	int ret;
+	FILE* f;
+	int readre;
+	int base = 0;
+	SDL_Log("into  record_thread,\n");
+
+
+	const char* en_codec_name = "libx264";
+	//准备编码器
+	const AVCodec* en_codec = avcodec_find_encoder_by_name(en_codec_name);
+	if (!en_codec) {
+		SDL_Log("record_thread Codec '%s' not found\n", en_codec_name);
+		exit(1);
+	}
+
+
+	AVCodecContext* en_ctx = avcodec_alloc_context3(en_codec);
+	AVPacket* pkt = av_packet_alloc();
+
+	AVRational frame_rate = { 25,1 };
+	AVRational frame_base = { 1,25 };
+
+
+
+	if (!pkt)
+		exit(1);
+	en_ctx->profile = FF_PROFILE_H264_HIGH_444;
+	en_ctx->level = 50;
+	en_ctx->gop_size = 25;
+	en_ctx->keyint_min = 25;
+	en_ctx->max_b_frames = 0;
+	en_ctx->has_b_frames = 0;
+	en_ctx->refs = 3;
+	en_ctx->bit_rate = 600000;
+	en_ctx->width = true_width;
+	en_ctx->height = true_height;
+	en_ctx->time_base = frame_base;
+	en_ctx->framerate = frame_rate;
+	en_ctx->gop_size = 10;
+	en_ctx->max_b_frames = 1;
+	en_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+
+
+	ret = avcodec_open2(en_ctx, en_codec, NULL);
+	if (ret < 0) {
+		SDL_Log("record_thread open avcodec_open2 fail \n");
+		exit(1);
+	}
+
+
+	if (en_codec->id == AV_CODEC_ID_H264) {
+		SDL_Log("record_thread codec id is changes ,now is %d\n", en_codec->id);
+		av_opt_set(en_ctx->priv_data, "preset", "slow", 0);
+	}
+	const char* filename = "../out.h264";
+
+	f = fopen(filename, "wb");
+	if (!f) {
+		fprintf(stderr, "record_thread Could not open %s\n", filename);
+		exit(1);
+	}
+
+	AVFrame* en_frame;
+
+	en_frame = av_frame_alloc();
+	if (!en_frame) {
+		fprintf(stderr, "record_thread Could not allocate video frame\n");
+		exit(1);
+	}
+	en_frame->format = en_ctx->pix_fmt;
+	en_frame->width = en_ctx->width;
+	en_frame->height = en_ctx->height;
+	ret = av_frame_get_buffer(en_frame, 0);
+	if (ret < 0) {
+		fprintf(stderr, "record_thread Could not allocate the video frame data\n");
+		exit(1);
+	}
+	fflush(stdout);
+
+	AVPacket* packet;
+	packet = av_packet_alloc();
+	AVFrame* frame;
+	frame = av_frame_alloc();
+
+	struct SwsContext* sws_ctx = NULL;
+	sws_ctx = sws_getContext(pam->Pcodectx->width,
+		pam->Pcodectx->height,
+		pam->Pcodectx->pix_fmt,
+		pam->Pcodectx->width,
+		pam->Pcodectx->height,
+		AV_PIX_FMT_YUV420P,
+		SWS_BILINEAR,
+		NULL,
+		NULL,
+		NULL
+	);
+
+
+
+
+	while (true)
+	{
+
+		if ((readre = av_read_frame(pam->ctx, packet)) >= 0) {
+			if (packet->stream_index == video_index) {
+				int ret = avcodec_send_packet(pam->Pcodectx, packet);
+				if (ret != 0) {
+					SDL_Log("record_thread cannot decoder pactket,\n");
+					break;
+				}
+			}
+			else {
+				SDL_Log("record_thread stream_index ret is %d,\n", packet->stream_index);
+			}
+		}
+		else {
+			SDL_Log("record_thread read_frame faile ret is %d,\n", readre);
+		}
+
+
+
+		if (avcodec_receive_frame(pam->Pcodectx, frame) >= 0) {
+
+
+
+			sws_scale(sws_ctx, (uint8_t const* const*)frame->data,
+				frame->linesize, 0, pam->Pcodectx->height,
+				en_frame->data,
+				en_frame->linesize);
+
+
+
+
+
+
+			en_frame->pts = base++;
+
+		ret = avcodec_send_frame(en_ctx, en_frame);
+
+
+
+		if (ret < 0) {
+
+			SDL_Log("Error sending a frame for encoding ret is %d\n", ret);
+			exit(1);
+		}
+		;
+		while (ret >= 0) {
+			ret = avcodec_receive_packet(en_ctx, pkt);
+			if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+				//SDL_Log("666 ret is %d\n", ret);
+				break;
+
+				return -1;
+			}
+			else if (ret < 0) {
+				fprintf(stderr, "Error during encoding\n");
+				exit(1);
+			}
+			//SDL_Log("Write packet %3PRId64 (size=%d)\n", pkt->pts, pkt->size);
+			fwrite(pkt->data, 1, pkt->size, f);
+			av_packet_unref(pkt);
+		}
+
+			av_packet_unref(packet);
+		}
+
+
+		av_packet_unref(packet);
+
+
+		SDL_Delay(40);
+
+	}
+
+
+
+
+
+
+
+
+
+
+	
+
+	return 0;
 }
 
 
@@ -134,7 +327,7 @@ int opencam()
 	SDL_Renderer *render = NULL;
 	SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO);
 
-	FILE* f;
+
 
 	
 
@@ -153,7 +346,7 @@ int opencam()
 
 	AVDeviceInfoList* devlist = nullptr;
 	int rets, w_width, w_height;
-	int true_width, true_height;
+
 	
 	static AVCodec *pCodec = NULL;
 
@@ -328,7 +521,7 @@ int opencam()
 	tpam->packet = packet;
 	tpam->Pcodectx = pCodecCtx;
 	SDL_Thread* thread_id = SDL_CreateThread(event_handler, "Camera thread", tpam);
-
+	SDL_Thread* thread_record_id = SDL_CreateThread(record_thread, "record thread", tpam);
 	//pCodecCtx->time_base.den = 1;
 
 
@@ -344,80 +537,6 @@ int opencam()
 
 
 
-
-
-
-	const char* en_codec_name = "libx264";
-	//准备编码器
-	 const AVCodec*  en_codec = avcodec_find_encoder_by_name(en_codec_name);
-	 if (!en_codec) {
-		 SDL_Log("Codec '%s' not found\n", en_codec_name);
-		 exit(1);
-	 }
-
-
-	 AVCodecContext* en_ctx = avcodec_alloc_context3(en_codec);
-	 AVPacket*  pkt = av_packet_alloc();
-
-	 AVRational frame_rate = {25,1};
-	 AVRational frame_base = {1,25 };
-
-
-
-	 if (!pkt)
-		 exit(1);
-	 en_ctx->profile = FF_PROFILE_H264_HIGH_444;
-	 en_ctx->level = 50;
-	 en_ctx->gop_size = 25;
-	 en_ctx->keyint_min = 25;
-	 en_ctx->max_b_frames = 0;
-	 en_ctx->has_b_frames = 0;
-	 en_ctx->refs = 3;
-	 en_ctx->bit_rate = 600000;
-	 en_ctx->width = true_width;
-	 en_ctx->height = true_height;
-	 en_ctx->time_base = frame_base;
-	 en_ctx->framerate = frame_rate;
-	 en_ctx->gop_size = 10;
-	 en_ctx->max_b_frames = 1;
-	 en_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
-
-
-	 ret = avcodec_open2(en_ctx,en_codec,NULL);
-	 if (ret < 0) {
-		 SDL_Log("open avcodec_open2 fail \n");
-		 exit(1);
-	 }
-
-
-	 if (en_codec->id == AV_CODEC_ID_H264) {
-		 SDL_Log("codec id is changes ,now is %d\n", en_codec->id);
-		 av_opt_set(en_ctx->priv_data, "preset", "slow", 0);
-	 }
-	 const char* filename = "out.mp4";
-		 
-	 f = fopen(filename, "wb");
-	 if (!f) {
-		 fprintf(stderr, "Could not open %s\n", filename);
-		 exit(1);
-	 }
-
-	 AVFrame* en_frame;
-
-	 en_frame = av_frame_alloc();
-	 if (!en_frame) {
-		 fprintf(stderr, "Could not allocate video frame\n");
-		 exit(1);
-	 }
-	 en_frame->format = en_ctx->pix_fmt;
-	 en_frame->width = en_ctx->width;
-	 en_frame->height = en_ctx->height;
-	 ret = av_frame_get_buffer(en_frame, 0);
-	 if (ret < 0) {
-		 fprintf(stderr, "Could not allocate the video frame data\n");
-		 exit(1);
-	 }
-	 fflush(stdout);
 
 
 
@@ -439,7 +558,7 @@ int opencam()
 		SDL_Event event;
 	/*	SDL_WaitEvent(&event);*/
 		SDL_PollEvent(&event);
-		int video_index =0;
+		
 		int readre;
 		switch (event.type)
 		{
@@ -464,40 +583,6 @@ int opencam()
 	
 
 					if (avcodec_receive_frame(pCodecCtx, frame) >= 0) {
-
-
-
-	/*					ret = avcodec_send_frame(en_ctx, frame);
-						if (ret < 0) {
-							
-							SDL_Log("Error sending a frame for encoding ret is %d\n",ret);
-							exit(1);
-						}
-
-						while (ret >= 0) {
-							ret = avcodec_receive_packet(en_ctx, pkt);
-							if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-								return -1;
-							else if (ret < 0) {
-								fprintf(stderr, "Error during encoding\n");
-								exit(1);
-							}
-
-						
-							SDL_Log("Write packet %3PRId64 (size=%d)\n", pkt->pts, pkt->size);
-							fwrite(pkt->data, 1, pkt->size, f);
-							av_packet_unref(pkt);
-						}
-*/
-
-
-
-
-
-
-
-
-
 
 
 

@@ -52,3 +52,5 @@ dkms.conf
 *.tlog
 *.log
 getcam\x64\Debug
+*.tlog
+*.log
