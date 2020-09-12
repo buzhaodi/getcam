@@ -58,3 +58,6 @@ getcam\x64\Debug
 *.log
 *.log
 getcam/x64/Debug/getcam.log
+*.log
+*.tlog
+out.mp4

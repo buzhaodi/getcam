@@ -9,6 +9,7 @@
 #include "strmif.h"
 #include <initguid.h>
 #include<vector>
+#include <time.h>
 
 #pragma comment(lib, "setupapi.lib")
 using namespace std;
@@ -85,20 +86,20 @@ int record_thread(void* data) {
 
 	if (!pkt)
 		exit(1);
-	en_ctx->profile = FF_PROFILE_H264_HIGH_444;
+	en_ctx->profile = FF_PROFILE_H264_BASELINE;
 	en_ctx->level = 50;
 	en_ctx->gop_size = 25;
 	en_ctx->keyint_min = 25;
 	en_ctx->max_b_frames = 0;
 	en_ctx->has_b_frames = 0;
-	en_ctx->refs = 3;
+//	en_ctx->refs = 3;
 	en_ctx->bit_rate = 6126000;
 	en_ctx->width = true_width;
 	en_ctx->height = true_height;
 	en_ctx->time_base = frame_base;
 	en_ctx->framerate = frame_rate;
-	en_ctx->gop_size = 10;
-	en_ctx->max_b_frames = 1;
+//	en_ctx->gop_size = 10;
+//	en_ctx->max_b_frames = 1;
 	en_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
 
 
@@ -210,7 +211,22 @@ int record_thread(void* data) {
 	}
 
 
+	
+		time_t tt = time(NULL);
+		tm* t = localtime(&tt);
+		SDL_Log("not time is %d-%02d-%02d %02d:%02d:%02d\n",
+			t->tm_year + 1900,
+			t->tm_mon + 1,
+			t->tm_mday,
+			t->tm_hour,
+			t->tm_min,
+			t->tm_sec);
 
+		time_t myt = time(NULL);
+		//cout << "sizeof(time_t) is: " << sizeof(time_t) << endl;
+		//cout << "myt is :" << myt << endl;
+
+	
 
 
 	while (true)
@@ -290,6 +306,17 @@ int record_thread(void* data) {
 
 
 			av_packet_unref(pkt);
+
+			time_t now = time(NULL);
+			
+			if (now - myt > 10) {
+				SDL_Log("record end!\n");
+				av_write_trailer(ofmt_ctx);
+				exit(1);
+			
+			}
+
+
 		}
 
 			av_packet_unref(packet);
