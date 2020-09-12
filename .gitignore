@@ -1,5 +1,7 @@
 # Prerequisites
 *.d
+.h264
+.mp4
 
 # Object files
 *.o
@@ -54,3 +56,5 @@ dkms.conf
 getcam\x64\Debug
 *.tlog
 *.log
+*.log
+getcam/x64/Debug/getcam.log

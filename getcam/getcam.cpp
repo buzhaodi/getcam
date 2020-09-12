@@ -62,6 +62,7 @@ int record_thread(void* data) {
 	FILE* f;
 	int readre;
 	int base = 0;
+	int p_base = 1;
 	SDL_Log("into  record_thread,\n");
 
 
@@ -91,7 +92,7 @@ int record_thread(void* data) {
 	en_ctx->max_b_frames = 0;
 	en_ctx->has_b_frames = 0;
 	en_ctx->refs = 3;
-	en_ctx->bit_rate = 600000;
+	en_ctx->bit_rate = 6126000;
 	en_ctx->width = true_width;
 	en_ctx->height = true_height;
 	en_ctx->time_base = frame_base;
@@ -99,6 +100,7 @@ int record_thread(void* data) {
 	en_ctx->gop_size = 10;
 	en_ctx->max_b_frames = 1;
 	en_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+
 
 
 	ret = avcodec_open2(en_ctx, en_codec, NULL);
@@ -112,7 +114,7 @@ int record_thread(void* data) {
 		SDL_Log("record_thread codec id is changes ,now is %d\n", en_codec->id);
 		av_opt_set(en_ctx->priv_data, "preset", "slow", 0);
 	}
-	const char* filename = "../out.h264";
+	const char* filename = "../out.mp4";
 
 	f = fopen(filename, "wb");
 	if (!f) {
@@ -154,6 +156,59 @@ int record_thread(void* data) {
 		NULL,
 		NULL
 	);
+
+	AVFormatContext* ofmt_ctx = NULL;
+	AVOutputFormat* fmt = nullptr;
+	AVStream* video_st = nullptr;
+	AVCodecContext* pCodecCtx = nullptr;
+
+	if ((ret = avformat_alloc_output_context2(&ofmt_ctx, NULL, "mp4", filename))) {
+		SDL_Log("Failed to allocate output context %d\n",ret);
+		exit(1);
+	}
+
+	fmt = ofmt_ctx->oformat;
+
+
+	video_st = avformat_new_stream(ofmt_ctx, NULL);
+
+	//avcodec_parameters_copy(video_st->codecpar,en_ctx );
+
+	avcodec_parameters_from_context(video_st->codecpar, en_ctx);
+
+
+
+
+
+
+
+
+
+
+
+
+	if ((ret = avio_open(&ofmt_ctx->pb, filename, AVIO_FLAG_READ_WRITE)) < 0) {
+			SDL_Log("Failed to open output file %d\n", ret);
+			exit(1);
+	}
+	
+
+
+
+	
+
+
+
+	av_dump_format(ofmt_ctx, 0, filename, 1);
+
+
+
+
+	if ((ret = avformat_write_header(ofmt_ctx, 0)) < 0) {
+		SDL_Log("Failed to write header to output file %d\n", ret);
+		exit(1);
+	}
+
 
 
 
@@ -218,7 +273,22 @@ int record_thread(void* data) {
 				exit(1);
 			}
 			//SDL_Log("Write packet %3PRId64 (size=%d)\n", pkt->pts, pkt->size);
-			fwrite(pkt->data, 1, pkt->size, f);
+
+
+			//fwrite(pkt->data, 1, pkt->size, f);
+
+			pkt->pts = base++;
+
+			if ((ret = av_interleaved_write_frame(ofmt_ctx, pkt)) < 0) {				
+				SDL_Log("Failed to mux packet  %d\n", ret);
+				av_packet_unref(pkt);
+				break;
+			}
+
+
+
+
+
 			av_packet_unref(pkt);
 		}
 
@@ -230,7 +300,7 @@ int record_thread(void* data) {
 
 
 		SDL_Delay(40);
-
+		//av_write_trailer(ofmt_ctx);
 	}
 
 
