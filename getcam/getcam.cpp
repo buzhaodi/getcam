@@ -202,7 +202,7 @@ int record_thread(void* data) {
 
 
 	AVDictionary* opt = NULL;
-	av_dict_set_int(&opt, "video_track_timescale", 25, 0);
+	av_dict_set_int(&opt, "video_track_timescale", 50, 0);
 
 
 	if ((ret = avformat_write_header(ofmt_ctx, &opt)) < 0) {
@@ -309,7 +309,7 @@ int record_thread(void* data) {
 
 			time_t now = time(NULL);
 			
-			if (now - myt > 5) {
+			if (now - myt > 30) {
 				SDL_Log("record end!\n");
 
 				ret = avcodec_send_frame(en_ctx, NULL);
@@ -496,6 +496,11 @@ int opencam()
 	AVFormatContext* ctx = avformat_alloc_context();
 
 
+	AVDictionary* bopt = NULL;
+	av_dict_set_int(&bopt, "max_picture_buffer", 6082560, 0);
+	av_dict_set_int(&bopt, "rtbufsize", 3041280 * 100, 0);
+
+
 	//获取第一个摄像头列表
 	vector<string> CameraName;//存储摄像头名称
 	int num = listDevices(CameraName);
@@ -507,7 +512,7 @@ int opencam()
 	if (CameraName[0].c_str()) {
 		SDL_Log("get camrea name is %s \n", CameraName[0].c_str());
 		string tmp("video=");		
-		ret = avformat_open_input(&ctx, (tmp + CameraName[0]).c_str(), fmt, nullptr);
+		ret = avformat_open_input(&ctx, (tmp + CameraName[0]).c_str(), fmt, &bopt);
 		if (ret != 0) {
 			fprintf(stderr, "fail to open input stream: %d\n", ret);
 			return -1;
@@ -634,7 +639,7 @@ int opencam()
 	int bufSize = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height,1);
 	uint8_t* buffer = (uint8_t *)av_malloc(bufSize);
 	av_image_fill_arrays(frame_yuv->data,frame_yuv->linesize,(const uint8_t *)buffer,
-		AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height,1);
+							AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height,1);
 
 
 	frame_yuv->format = AV_PIX_FMT_YUV420P;
@@ -656,36 +661,8 @@ int opencam()
 	tpam->packet = packet;
 	tpam->Pcodectx = pCodecCtx;
 	SDL_Thread* thread_id = SDL_CreateThread(event_handler, "Camera thread", tpam);
-	SDL_Thread* thread_record_id = SDL_CreateThread(record_thread, "record thread", tpam);
+	//SDL_Thread* thread_record_id = SDL_CreateThread(record_thread, "record thread", tpam);
 	//pCodecCtx->time_base.den = 1;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 	//pCodecCtx->time_base.num = 75;
