@@ -10,6 +10,7 @@
 #include <initguid.h>
 #include<vector>
 #include <time.h>
+#include <queue>
 
 #pragma comment(lib, "setupapi.lib")
 using namespace std;
@@ -41,7 +42,7 @@ DEFINE_GUID(IID_ICreateDevEnum, 0x29840822, 0x5b84, 0x11d0, 0xbd, 0x3b, 0x00, 0x
 int thread_exit = 0;
 int true_width, true_height;
 int video_index = 0;
-
+queue<AVFrame*> Framelist;
 int event_handler(void * data) {
 	while (!thread_exit) {
 		SDL_Event event;
@@ -202,7 +203,7 @@ int record_thread(void* data) {
 
 
 	AVDictionary* opt = NULL;
-	av_dict_set_int(&opt, "video_track_timescale", 50, 0);
+	av_dict_set_int(&opt, "video_track_timescale", 25, 0);
 
 
 	if ((ret = avformat_write_header(ofmt_ctx, &opt)) < 0) {
@@ -232,39 +233,23 @@ int record_thread(void* data) {
 	while (true)
 	{
 
-		if ((readre = av_read_frame(pam->ctx, packet)) >= 0) {
-			if (packet->stream_index == video_index) {
-				int ret = avcodec_send_packet(pam->Pcodectx, packet);
-				if (ret != 0) {
-					SDL_Log("record_thread cannot decoder pactket,\n");
-					break;
-				}
-			}
-			else {
-				SDL_Log("record_thread stream_index ret is %d,\n", packet->stream_index);
-			}
-		}
-		else {
-			SDL_Log("record_thread read_frame faile ret is %d,\n", readre);
+		if (Framelist.empty()) {
+			//SDL_Log("the framelist is empty sleep 40ms");
+			SDL_Delay(40);
+			continue;
 		}
 
-
-
-		if (avcodec_receive_frame(pam->Pcodectx, frame) >= 0) {
-
-
-
-			sws_scale(sws_ctx, (uint8_t const* const*)frame->data,
-				frame->linesize, 0, pam->Pcodectx->height,
-				en_frame->data,
-				en_frame->linesize);
+		en_frame = Framelist.front();
+		Framelist.pop();
 
 
 
+		en_frame->width = pam->Pcodectx->width;
+		en_frame->height = pam->Pcodectx->height;
+
+		en_frame->pts = base++;
 
 
-
-			en_frame->pts = base++;
 
 		ret = avcodec_send_frame(en_ctx, en_frame);
 
@@ -309,7 +294,7 @@ int record_thread(void* data) {
 
 			time_t now = time(NULL);
 			
-			if (now - myt > 30) {
+			if (now - myt > 15) {
 				SDL_Log("record end!\n");
 
 				ret = avcodec_send_frame(en_ctx, NULL);
@@ -358,7 +343,7 @@ int record_thread(void* data) {
 		}
 
 			av_packet_unref(packet);
-		}
+		
 
 
 		av_packet_unref(packet);
@@ -661,7 +646,7 @@ int opencam()
 	tpam->packet = packet;
 	tpam->Pcodectx = pCodecCtx;
 	SDL_Thread* thread_id = SDL_CreateThread(event_handler, "Camera thread", tpam);
-	//SDL_Thread* thread_record_id = SDL_CreateThread(record_thread, "record thread", tpam);
+	SDL_Thread* thread_record_id = SDL_CreateThread(record_thread, "record thread", tpam);
 	//pCodecCtx->time_base.den = 1;
 
 
@@ -711,6 +696,9 @@ int opencam()
 								frame_yuv->data[1], frame_yuv->linesize[1],
 								frame_yuv->data[2], frame_yuv->linesize[2]
 							);
+
+
+							Framelist.push(frame_yuv);
 
 							// Set Size of Window
 							rect.x = 0;
