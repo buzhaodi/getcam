@@ -11,6 +11,7 @@
 #include<vector>
 #include <time.h>
 #include <queue>
+#include <sstream>
 
 #pragma comment(lib, "setupapi.lib")
 using namespace std;
@@ -23,6 +24,7 @@ extern "C"
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
 #include "libavutil/imgutils.h"
+#include "libavfilter/avfilter.h"
 }
 
 typedef struct Pam {
@@ -42,6 +44,7 @@ DEFINE_GUID(IID_ICreateDevEnum, 0x29840822, 0x5b84, 0x11d0, 0xbd, 0x3b, 0x00, 0x
 int thread_exit = 0;
 int true_width, true_height;
 int video_index = 0;
+int is_quit = 0;
 queue<AVFrame*> Framelist;
 int event_handler(void * data) {
 	while (!thread_exit) {
@@ -112,15 +115,47 @@ int record_thread(void* data) {
 	}
 
 
+
+
+
+
+
+
+
+
+
 	if (en_codec->id == AV_CODEC_ID_H264) {
 		SDL_Log("record_thread codec id is changes ,now is %d\n", en_codec->id);
 		av_opt_set(en_ctx->priv_data, "preset", "slow", 0);
 	}
-	const char* filename = "../out.mp4";
 
-	f = fopen(filename, "wb");
+
+	time_t time_r_t = time(NULL);
+	tm* nt = localtime(&time_r_t);
+	SDL_Log("not time is %d-%02d-%02d %02d:%02d:%02d\n",
+		nt->tm_year + 1900,
+		nt->tm_mon + 1,
+		nt->tm_mday,
+		nt->tm_hour,
+		nt->tm_min,
+		nt->tm_sec);
+
+
+	ostringstream ostr;
+	ostr << nt->tm_year + 1900 << "-" << nt->tm_mon + 1 << "-" << nt->tm_mday << "," << nt->tm_hour << "-" << nt->tm_min << "-" << nt->tm_sec ;
+
+
+	string nowtimesrt = ostr.str();
+	//SDL_Log("now lallal is %s", str.c_str());
+
+
+	string filename = "../" + nowtimesrt + ".mp4";
+
+
+	f = fopen(filename.c_str(), "wb");
+	//f = fopen("../2020-9-16,10:32:51.mp4", "wb");	
 	if (!f) {
-		fprintf(stderr, "record_thread Could not open %s\n", filename);
+		fprintf(stderr, "record_thread Could not open %s\n", filename.c_str());
 		exit(1);
 	}
 
@@ -164,7 +199,7 @@ int record_thread(void* data) {
 	AVStream* video_st = nullptr;
 	AVCodecContext* pCodecCtx = nullptr;
 
-	if ((ret = avformat_alloc_output_context2(&ofmt_ctx, NULL, "mp4", filename))) {
+	if ((ret = avformat_alloc_output_context2(&ofmt_ctx, NULL, "mp4", filename.c_str()))) {
 		SDL_Log("Failed to allocate output context %d\n",ret);
 		exit(1);
 	}
@@ -187,7 +222,7 @@ int record_thread(void* data) {
 
 
 
-	if ((ret = avio_open(&ofmt_ctx->pb, filename, AVIO_FLAG_READ_WRITE)) < 0) {
+	if ((ret = avio_open(&ofmt_ctx->pb, filename.c_str(), AVIO_FLAG_READ_WRITE)) < 0) {
 			SDL_Log("Failed to open output file %d\n", ret);
 			exit(1);
 	}
@@ -199,7 +234,7 @@ int record_thread(void* data) {
 
 
 
-	av_dump_format(ofmt_ctx, 0, filename, 1);
+	av_dump_format(ofmt_ctx, 0, filename.c_str(), 1);
 
 
 	AVDictionary* opt = NULL;
@@ -294,7 +329,7 @@ int record_thread(void* data) {
 
 			time_t now = time(NULL);
 			
-			if (now - myt > 15) {
+			if (now - myt > 5 or is_quit == 1) {
 				SDL_Log("record end!\n");
 
 				ret = avcodec_send_frame(en_ctx, NULL);
@@ -335,7 +370,24 @@ int record_thread(void* data) {
 
 				av_write_trailer(ofmt_ctx);				
 				av_packet_unref(pkt);
-				exit(1);
+				if (is_quit == 1) {
+					fclose(f);
+					exit(1);
+				}
+				else {
+					SDL_Thread* thread_record_id = SDL_CreateThread(record_thread, "record thread", pam);
+					avcodec_free_context(&en_ctx);
+					avformat_free_context(ofmt_ctx);
+					fclose(f);
+					//av_free(en_frame);
+
+
+					av_packet_unref(pkt);
+					av_packet_unref(packet);					
+
+					return 0;
+				}
+				
 			}
 
 			av_packet_unref(pkt);
@@ -766,7 +818,8 @@ int opencam()
 		case SDL_QUIT:
 			fprintf(stderr, "receive a QUIT event: %d\n", event.type);
 			SDL_Log("event type is ext %d", event.type);
-			goto __EXIT;
+			is_quit = 1;
+			//goto __EXIT;
 			break ;
 		default:
 			/*SDL_Log("event type is %d",event.type);*/
